@@ -1,3 +1,5 @@
 .env
 old_main.py
 last_id.txt
+build
+dist/.env

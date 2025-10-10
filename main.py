@@ -31,9 +31,12 @@ WB_TAG = os.getenv("WB_TAG", "DEFAULT_WB")
 SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL", 10))
 
 def send_heartbeat(pc_name):
+    heartbeat_ip = os.getenv("MONITORING_IP")
+    heartbeat_url = f"{heartbeat_ip}/api/heartbeat"
+    
     while True:
         try:
-            requests.post("http://127.0.0.1:5000/api/heartbeat", json={"pc_name": pc_name}, timeout=3)
+            requests.post(heartbeat_url, json={"pc_name": pc_name}, timeout=3)
         except Exception as e:
             print("⚠️ Gagal kirim heartbeat:", e)
         time.sleep(10)

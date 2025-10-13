@@ -30,6 +30,8 @@ SQLSRV_TABLE = os.getenv("SQLSRV_TABLE")
 WB_TAG = os.getenv("WB_TAG", "DEFAULT_WB")
 SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL", 10))
 
+PC_NAME = os.getenv("PC_NAME")
+
 def send_heartbeat(pc_name):
     heartbeat_ip = os.getenv("MONITORING_IP")
     heartbeat_url = f"{heartbeat_ip}/api/heartbeat"
@@ -114,8 +116,8 @@ def sync_data():
                         print(error_notfound_mysql)
                         
                         mysql_cur.execute(
-                            f"UPDATE {MYSQL_LOG} SET STATUS = 'FAILED', MESSAGE = %s WHERE NOURUT1 = %s AND PLANT_ID = %s",
-                            (error_notfound_mysql, NOURUT1, PLANT_ID)
+                            f"UPDATE {MYSQL_LOG} SET STATUS = 'FAILED', MESSAGE = %s, PC_NAME = %s WHERE NOURUT1 = %s AND PLANT_ID = %s",
+                            (error_notfound_mysql, PC_NAME, NOURUT1, PLANT_ID)
                         )
                         mysql_conn.commit()
                         continue
@@ -171,8 +173,8 @@ def sync_data():
                         # mysql_conn.commit()
                         
                         mysql_cur.execute(
-                            f"UPDATE {MYSQL_LOG} SET STATUS = 'SUCCESS', MESSAGE = 'Data updated successfully', COUNTER_DONE = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND AKSI = 'UPDATE' AND COUNTER_DONE = %s",
-                            (row_counter_done_update, NOURUT1, PLANT_ID, 0)
+                            f"UPDATE {MYSQL_LOG} SET STATUS = 'SUCCESS', MESSAGE = 'Data updated successfully', COUNTER_DONE = %s, PC_NAME = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND AKSI = 'UPDATE' AND COUNTER_DONE = %s",
+                            (row_counter_done_update, PC_NAME, NOURUT1, PLANT_ID, 0)
                         )
                         mysql_conn.commit()
 
@@ -194,8 +196,8 @@ def sync_data():
                             # mysql_conn.commit()
                             
                             mysql_cur.execute(
-                                f"UPDATE {MYSQL_LOG} SET STATUS = 'SUCCESS', MESSAGE = 'Data inserted successfully', COUNTER_DONE = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND AKSI = 'INSERT' AND COUNTER_DONE = %s",
-                                (row_counter_done_update, NOURUT1, PLANT_ID, 0)
+                                f"UPDATE {MYSQL_LOG} SET STATUS = 'SUCCESS', MESSAGE = 'Data inserted successfully', COUNTER_DONE = %s, PC_NAME = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND AKSI = 'INSERT' AND COUNTER_DONE = %s",
+                                (row_counter_done_update, PC_NAME, NOURUT1, PLANT_ID, 0)
                             )
                             mysql_conn.commit()
                             
@@ -219,8 +221,8 @@ def sync_data():
                         print("#DELETE row_counter_done_update: ", row_counter_done_update)
                         print("#DELETE row_counter_done_old: ", row_counter_done_old)
                         mysql_cur.execute(
-                            f"UPDATE {MYSQL_LOG} SET STATUS = 'SUCCESS', MESSAGE = 'Data deleted successfully', COUNTER_DONE = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND AKSI = 'DELETE' AND COUNTER_DONE = %s",
-                            (row_counter_done_update, NOURUT1, PLANT_ID, 0)
+                            f"UPDATE {MYSQL_LOG} SET STATUS = 'SUCCESS', MESSAGE = 'Data deleted successfully', COUNTER_DONE = %s, PC_NAME = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND AKSI = 'DELETE' AND COUNTER_DONE = %s",
+                            (row_counter_done_update, PC_NAME, NOURUT1, PLANT_ID, 0)
                         )
                         mysql_conn.commit()
                         
@@ -241,8 +243,8 @@ def sync_data():
                 error_message = f"ERROR processing {NOURUT1}-{PLANT_ID}: {e}"
                 print(error_message)
                 mysql_cur.execute(
-                    f"UPDATE {MYSQL_LOG} SET MESSAGE = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND COUNTER_DONE = %s",
-                    (error_message, NOURUT1, PLANT_ID, 0)
+                    f"UPDATE {MYSQL_LOG} SET MESSAGE = %s, PC_NAME = %s WHERE NOURUT1 = %s AND PLANT_ID = %s AND COUNTER_DONE = %s",
+                    (error_message, PC_NAME, NOURUT1, PLANT_ID, 0)
                 )
                 mysql_conn.commit()
                 
@@ -267,7 +269,7 @@ def sync_data():
 if __name__ == "__main__":
     while True:
         try:
-            PC_NAME = os.getenv("PC_NAME")
+            # PC_NAME = os.getenv("PC_NAME")
             threading.Thread(target=send_heartbeat, args=(PC_NAME,), daemon=True).start()
             sync_data()
         except Exception as e:

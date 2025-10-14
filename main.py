@@ -26,7 +26,7 @@ SQLSERVER_CONN = {
 
 MYSQL_LOG = os.getenv("MYSQL_TABLE_LOG")
 MYSQL_TABLE = os.getenv("MYSQL_TABLE")
-SQLSRV_TABLE = os.getenv("SQLSRV_TABLE")
+SQLSRV_TABLE = os.getenv("SQLSERVER_TABLE")
 WB_TAG = os.getenv("WB_TAG", "DEFAULT_WB")
 SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL", 10))
 
@@ -62,7 +62,7 @@ def get_shift_date(dt):
         return None
 
 
-def sync_data():
+def sync_data_timbang():
     # --- koneksi ke SQL Server ---
     sqlsrv_conn = pyodbc.connect(
         f"DRIVER={{ODBC Driver 17 for SQL Server}};"
@@ -264,6 +264,69 @@ def sync_data():
         except:
             pass
 
+def sync_data_timbang_log():
+    try:
+        mysql_conn = mysql.connector.connect(**MYSQL_CONN)
+        mysql_cursor = mysql_conn.cursor(dictionary=True)
+
+        mysql_cursor.execute("""
+            SELECT * FROM tb_timbang2_log 
+            WHERE (SYNC_STATUS IS NULL OR SYNC_STATUS != 'SENT')
+            ORDER BY LOG_TIME ASC
+            LIMIT 100
+        """)
+        logs = mysql_cursor.fetchall()
+
+        if not logs:
+            print(f"[{datetime.datetime.now()}] Tidak ada log baru untuk dikirim.")
+            mysql_conn.close()
+            return
+
+        sqlsrv_cur = pyodbc.connect(
+            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+            f"SERVER={SQLSERVER_CONN['server']};"
+            f"DATABASE={SQLSERVER_CONN['database']};"
+            f"UID={SQLSERVER_CONN['username']};PWD={SQLSERVER_CONN['password']}"
+        )
+        sql_cursor = sqlsrv_cur.cursor()
+
+        for log in logs:
+            try:
+                sql_cursor.execute("""
+                    INSERT INTO tb_timbang4_log (NOURUT1, PLANT_ID, AKSI, COUNTER_DONE, PC_NAME, STATUS, MESSAGE, LOG_TIME)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    log.get("NOURUT1"),
+                    log.get("PLANT_ID"),
+                    log.get("AKSI"),
+                    log.get("COUNTER_DONE"),
+                    log.get("PC_NAME"),
+                    log.get("STATUS"),
+                    log.get("MESSAGE"),
+                    log.get("LOG_TIME"),
+                ))
+
+                # update status di mysql
+                mysql_cursor.execute(
+                    "UPDATE tb_timbang2_log SET SYNC_STATUS='SENT' WHERE NOURUT1=%s AND LOG_TIME=%s",
+                    (log["NOURUT1"], log["LOG_TIME"]),
+                )
+
+            except Exception as e:
+                print(f"[ERROR] Gagal kirim log: {e}")
+                continue
+
+        sqlsrv_cur.commit()
+        mysql_conn.commit()
+
+        print(f"[{datetime.datetime.now()}] ✅ {len(logs)} log berhasil dikirim ke SQL Server")
+
+        sqlsrv_cur.close()
+        mysql_conn.close()
+
+    except Exception as e:
+        print(f"[FATAL] {e}")
+
 
 # === Main loop ===
 if __name__ == "__main__":
@@ -271,7 +334,8 @@ if __name__ == "__main__":
         try:
             # PC_NAME = os.getenv("PC_NAME")
             threading.Thread(target=send_heartbeat, args=(PC_NAME,), daemon=True).start()
-            sync_data()
+            sync_data_timbang()
+            sync_data_timbang_log()
         except Exception as e:
             print("Terjadi error utama:", e)
         time.sleep(SYNC_INTERVAL)

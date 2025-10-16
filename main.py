@@ -25,6 +25,8 @@ SQLSERVER_CONN = {
 }
 
 MYSQL_LOG = os.getenv("MYSQL_TABLE_LOG")
+SQLSERVER_LOG = os.getenv("SQLSERVER_TABLE_LOG")
+
 MYSQL_TABLE = os.getenv("MYSQL_TABLE")
 SQLSRV_TABLE = os.getenv("SQLSERVER_TABLE")
 WB_TAG = os.getenv("WB_TAG", "DEFAULT_WB")
@@ -51,7 +53,7 @@ def get_shift_date(dt):
     try:
         trim_date = dt.date()
         trim_time = dt.time()
-        if datetime.time(7, 0, 0) <= trim_time <= datetime.time(18, 59, 0):
+        if datetime.time(7, 0, 0) <= trim_time <= datetime.time(18, 59, 59):
             return datetime.datetime.combine(trim_date, datetime.time(0, 0, 1))
         elif datetime.time(19, 0, 0) <= trim_time <= datetime.time(23, 59, 59):
             return datetime.datetime.combine(trim_date, datetime.time(0, 0, 2))
@@ -269,8 +271,8 @@ def sync_data_timbang_log():
         mysql_conn = mysql.connector.connect(**MYSQL_CONN)
         mysql_cursor = mysql_conn.cursor(dictionary=True)
 
-        mysql_cursor.execute("""
-            SELECT * FROM tb_timbang2_log 
+        mysql_cursor.execute(f"""
+            SELECT * FROM {MYSQL_LOG} 
             WHERE (SYNC_STATUS IS NULL OR SYNC_STATUS != 'SENT')
             ORDER BY LOG_TIME ASC
             LIMIT 100
@@ -292,8 +294,8 @@ def sync_data_timbang_log():
 
         for log in logs:
             try:
-                sql_cursor.execute("""
-                    INSERT INTO tb_timbang4_log (NOURUT1, PLANT_ID, AKSI, COUNTER_DONE, PC_NAME, STATUS, MESSAGE, LOG_TIME)
+                sql_cursor.execute(f"""
+                    INSERT INTO {SQLSERVER_LOG} (NOURUT1, PLANT_ID, AKSI, COUNTER_DONE, PC_NAME, STATUS, MESSAGE, LOG_TIME)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     log.get("NOURUT1"),
@@ -307,10 +309,12 @@ def sync_data_timbang_log():
                 ))
 
                 # update status di mysql
-                mysql_cursor.execute(
-                    "UPDATE tb_timbang2_log SET SYNC_STATUS='SENT' WHERE NOURUT1=%s AND LOG_TIME=%s",
-                    (log["NOURUT1"], log["LOG_TIME"]),
-                )
+                query = f"""
+                    UPDATE {MYSQL_LOG} 
+                    SET SYNC_STATUS='SENT' 
+                    WHERE NOURUT1=%s AND LOG_TIME=%s
+                """
+                mysql_cursor.execute(query, (log["NOURUT1"], log["LOG_TIME"]))
 
             except Exception as e:
                 print(f"[ERROR] Gagal kirim log: {e}")

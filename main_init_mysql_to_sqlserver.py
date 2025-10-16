@@ -23,7 +23,7 @@ SQLSERVER_CONN = {
 
 MYSQL_TABLE = os.getenv("MYSQL_TABLE")
 SQLSRV_TABLE = os.getenv("SQLSRV_TABLE")
-WB_TAG = os.getenv("WB_TAG", "DEFAULT_WB")
+WB_TAG = os.getenv("WB_TAG")
 
 def get_shift_date(dt):
     if not dt:
@@ -31,7 +31,7 @@ def get_shift_date(dt):
     try:
         trim_date = dt.date()
         trim_time = dt.time()
-        if datetime.time(7, 0, 0) <= trim_time <= datetime.time(18, 59, 0):
+        if datetime.time(7, 0, 0) <= trim_time <= datetime.time(18, 59, 59):
             return datetime.datetime.combine(trim_date, datetime.time(0, 0, 1))
         elif datetime.time(19, 0, 0) <= trim_time <= datetime.time(23, 59, 59):
             return datetime.datetime.combine(trim_date, datetime.time(0, 0, 2))
@@ -59,11 +59,11 @@ def initial_sync():
     mysql_cur = mysql_conn.cursor(dictionary=True)
 
     try:
-        sqlsrv_cur.execute(f"SELECT COUNT(*) FROM {SQLSRV_TABLE}")
+        sqlsrv_cur.execute(f"SELECT COUNT(*) FROM {SQLSRV_TABLE} WHERE wb_tag = ?", (WB_TAG,))
         count_sqlsrv = sqlsrv_cur.fetchone()[0]
 
         if count_sqlsrv > 0:
-            print(f"❌ Tabel {SQLSRV_TABLE} sudah berisi data ({count_sqlsrv} baris).")
+            print(f"❌ Data dengan WB_TAG={WB_TAG} sudah ada di tabel {SQLSRV_TABLE} ({count_sqlsrv} baris).")
             return
 
         mysql_cur.execute(f"SELECT * FROM {MYSQL_TABLE}")
@@ -104,16 +104,24 @@ def initial_sync():
         sqlsrv_conn.close()
 
 if __name__ == "__main__":
-    start = time.time()
-    start_time = datetime.datetime.now()
+    try:
+        start = time.time()
+        start_time = datetime.datetime.now()
 
-    print("=== Program Initial Sync MySQL → SQL Server ===")
-    print(f"🕒 Mulai pada: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=== Program Initial Sync MySQL → SQL Server ===")
+        print(f"🕒 Mulai pada: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        initial_sync()
+        
+        durasi = round(time.time() - start)
+        selesai_pada = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        print(f"🕔 Selesai pada: {selesai_pada}")
+        print(f"⏱️ Durasi total: {durasi}s")
     
-    initial_sync()
-    
-    durasi = round(time.time() - start)
-    selesai_pada = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    print(f"🕔 Selesai pada: {selesai_pada}")
-    print(f"⏱️ Durasi total: {durasi}s")
+    except Exception as e:
+        print("\n‼️ Terjadi error:")
+        print(e)
+
+    finally:
+        input("\nTekan Enter untuk keluar...")
